@@ -14,6 +14,9 @@ df = pd.read_csv(
     encoding="latin1"
 )
 
+df.columns = df.columns.str.strip()
+print("Colunas do CSV:", df.columns.tolist())
+
 df = df.rename(columns={
     "Codigo": "codigo",
     "Produto": "produto",
