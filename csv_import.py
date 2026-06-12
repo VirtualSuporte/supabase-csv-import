@@ -2,36 +2,70 @@ import os
 import pandas as pd
 from supabase import create_client
 
-# Credenciais do Supabase (configuradas no GitHub Secrets)
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-# Criar cliente Supabase
 client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Ler CSV
-df = pd.read_csv("products.csv",
+df = pd.read_csv(
+    "products.csv",
     sep=";",
     dtype=str,
-    encoding="utf-8"
+    encoding="latin1"
 )
 
-# Verificar quais id's já existem para evitar duplicação
-existing = client.table("products").select("codigo").execute()
-existing_ids = set([item["codigo"] for item in existing.data])
+df = df.rename(columns={
+    "Codigo": "codigo",
+    "Produto": "produto",
+    "Cod_Barra": "cod_barra",
+    "Emb": "emb",
+    "Pack": "pack",
+    "Estoque": "estoque",
+    "Pr_Custo": "pr_custo",
+    "Pr_Venda": "pr_venda",
+    "CodCategoria": "codcategoria",
+    "Categoria": "categoria",
+    "Pr_Promoc": "pr_promoc",
+    "Inic_Promo": "inic_promo",
+    "Valid_Promo": "valid_promo",
+    "UltAlt_PVenda": "ultalt_pvenda"
+})
 
-# Só inserir linhas com id novo
-#new_rows = df[df["codigo"].notin(existing_ids)]
-new_rows = df[~df["codigo"].isin(existing_ids)]
+# Limpar código de barras vindo como ="9002490214166"
+df["cod_barra"] = (
+    df["cod_barra"]
+    .str.replace('="', '', regex=False)
+    .str.replace('"', '', regex=False)
+    .str.strip()
+)
 
-print(f"Tabela tem {len(existing_ids)} linhas, CSV tem {len(df)} linhas")
-print(f"Inserindo {len(new_rows)} novas linhas...")
+# Converter valores numéricos brasileiros
+for col in ["pack", "estoque", "pr_custo", "pr_venda", "pr_promoc"]:
+    df[col] = (
+        df[col]
+        .str.replace(".", "", regex=False)
+        .str.replace(",", ".", regex=False)
+    )
 
-# Inserir em batches (melhor para 3500 linhas)
+# Converter datas dd/mm/yyyy
+for col in ["inic_promo", "valid_promo", "ultalt_pvenda"]:
+    df[col] = pd.to_datetime(df[col], format="%d/%m/%Y", errors="coerce").dt.strftime("%Y-%m-%d")
+
+# Trocar NaN por None
+df = df.where(pd.notnull(df), None)
+
+records = df.to_dict("records")
+
 batch_size = 100
-for i in range(0, len(new_rows), batch_size):
-    batch = new_rows[i:i+batch_size].to_dict("records")
-    client.table("products").insert(batch).execute()
-    print(f"Batch {i//batch_size + 1} inserido!")
 
-print("✅ CSV importado com sucesso!")
+for i in range(0, len(records), batch_size):
+    batch = records[i:i + batch_size]
+
+    client.table("products_master").upsert(
+        batch,
+        on_conflict="codigo"
+    ).execute()
+
+    print(f"Batch {i // batch_size + 1} enviado")
+
+print("Produtos atualizados com sucesso!")
