@@ -20,7 +20,7 @@ print("Colunas do CSV:", df.columns.tolist())
 df = df.rename(columns={
     "Codigo": "codigo",
     "Produto": "produto",
-    "CodBarra": "cod_barra",
+    "Cod_Barra": "cod_barra",
     "Emb": "emb",
     "Pack": "pack",
     "Estoque": "estoque",
