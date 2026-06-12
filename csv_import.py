@@ -10,14 +10,19 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Ler CSV
-df = pd.read_csv("products.csv")
+df = pd.read_csv("products.csv",
+    sep=";",
+    dtype=str,
+    encoding="utf-8"
+)
 
 # Verificar quais id's já existem para evitar duplicação
 existing = client.table("products").select("codigo").execute()
 existing_ids = set([item["codigo"] for item in existing.data])
 
 # Só inserir linhas com id novo
-new_rows = df[df["codigo"].notin(existing_ids)]
+#new_rows = df[df["codigo"].notin(existing_ids)]
+new_rows = df[~df["codigo"].isin(existing_ids)]
 
 print(f"Tabela tem {len(existing_ids)} linhas, CSV tem {len(df)} linhas")
 print(f"Inserindo {len(new_rows)} novas linhas...")
